@@ -705,6 +705,8 @@ impl QuadGl {
         let mut index_buff_space = self.max_indices;
         let mut vertex_buff_space = self.max_vertices;
 
+        self.batch_binding_slices[0] = (0, 0, 0, 0);
+
         for dc in &mut self.draw_calls[0..self.draw_calls_count] {
             if index_buff_space < dc.indices_count || vertex_buff_space < dc.vertices_count {
                 index_buff_space = self.max_indices;
