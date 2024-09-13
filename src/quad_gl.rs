@@ -24,6 +24,8 @@ struct DrawCall {
     indices_count: usize,
     vertices_start: usize,
     indices_start: usize,
+    binding_start: usize,
+    binding_id: usize,
 
     clip: Option<(i32, i32, i32, i32)>,
     viewport: Option<(i32, i32, i32, i32)>,
@@ -50,6 +52,8 @@ impl DrawCall {
         DrawCall {
             vertices_start: 0,
             indices_start: 0,
+            binding_start: 0,
+            binding_id: 0,
             vertices_count: 0,
             indices_count: 0,
             viewport: None,
@@ -556,7 +560,6 @@ pub struct QuadGl {
     pipelines: PipelinesStorage,
 
     draw_calls: Vec<DrawCall>,
-    draw_calls_bindings: Vec<Bindings>,
     draw_calls_count: usize,
     state: GlState,
     start_time: f64,
@@ -567,11 +570,26 @@ pub struct QuadGl {
 
     batch_vertex_buffer: Vec<Vertex>,
     batch_index_buffer: Vec<u16>,
+    batch_bindings: Vec<Bindings>,
+    batch_binding_slices: Vec<(usize, usize, usize, usize)>,
 }
 
 impl QuadGl {
     pub fn new(ctx: &mut dyn miniquad::RenderingBackend) -> QuadGl {
         let white_texture = ctx.new_texture_from_rgba8(1, 1, &[255, 255, 255, 255]);
+        let max_vertices = 10_000;
+        let max_indices = 5000;
+
+        let vertex_buffer = ctx.new_buffer(
+            BufferType::VertexBuffer,
+            BufferUsage::Stream,
+            BufferSource::empty::<Vertex>(max_vertices),
+        );
+        let index_buffer = ctx.new_buffer(
+            BufferType::IndexBuffer,
+            BufferUsage::Stream,
+            BufferSource::empty::<u16>(max_indices),
+        );
 
         QuadGl {
             pipelines: PipelinesStorage::new(ctx),
@@ -589,17 +607,23 @@ impl QuadGl {
                 capture: false,
             },
             draw_calls: Vec::with_capacity(200),
-            draw_calls_bindings: Vec::with_capacity(200),
             draw_calls_count: 0,
             start_time: miniquad::date::now(),
 
-            white_texture: white_texture,
-            max_vertices: 10000,
-            max_indices: 5000,
+            white_texture,
+            max_vertices,
+            max_indices,
 
             // Good first estimates. Vec will scale exponentially if needed
             batch_vertex_buffer: Vec::with_capacity(10000),
             batch_index_buffer: Vec::with_capacity(5000),
+
+            batch_bindings: vec![Bindings {
+                vertex_buffers: vec![vertex_buffer],
+                index_buffer,
+                images: vec![white_texture, white_texture],
+            }],
+            batch_binding_slices: vec![(0, 0, 0, 0)],
         }
     }
 
@@ -677,35 +701,81 @@ impl QuadGl {
     pub fn draw(&mut self, ctx: &mut dyn miniquad::RenderingBackend, projection: glam::Mat4) {
         let white_texture = self.white_texture;
 
-        for _ in 0..self.draw_calls.len() - self.draw_calls_bindings.len() {
-            let vertex_buffer = ctx.new_buffer(
-                BufferType::VertexBuffer,
-                BufferUsage::Stream,
-                BufferSource::empty::<Vertex>(self.max_vertices),
-            );
-            let index_buffer = ctx.new_buffer(
-                BufferType::IndexBuffer,
-                BufferUsage::Stream,
-                BufferSource::empty::<u16>(self.max_indices),
-            );
-            let bindings = Bindings {
-                vertex_buffers: vec![vertex_buffer],
-                index_buffer,
-                images: vec![white_texture, white_texture],
-            };
+        let mut curr_binding = 0;
+        let mut index_buff_space = self.max_indices;
+        let mut vertex_buff_space = self.max_vertices;
 
-            self.draw_calls_bindings.push(bindings);
+        for dc in &mut self.draw_calls[0..self.draw_calls_count] {
+            if index_buff_space < dc.indices_count || vertex_buff_space < dc.vertices_count {
+                index_buff_space = self.max_indices;
+                vertex_buff_space = self.max_vertices;
+
+                if self.batch_bindings.get(curr_binding + 1).is_none() {
+                    let vertex_buffer = ctx.new_buffer(
+                        BufferType::VertexBuffer,
+                        BufferUsage::Stream,
+                        BufferSource::empty::<Vertex>(self.max_vertices),
+                    );
+                    let index_buffer = ctx.new_buffer(
+                        BufferType::IndexBuffer,
+                        BufferUsage::Stream,
+                        BufferSource::empty::<u16>(self.max_indices),
+                    );
+                    self.batch_bindings.push(Bindings {
+                        vertex_buffers: vec![vertex_buffer],
+                        index_buffer,
+                        images: vec![white_texture, white_texture],
+                    });
+                    self.batch_binding_slices.push((0, 0, 0, 0));
+                }
+
+                self.batch_binding_slices[curr_binding + 1].0 =
+                    self.batch_binding_slices[curr_binding].0 +
+                    self.batch_binding_slices[curr_binding].1;
+                self.batch_binding_slices[curr_binding + 1].1 = 0;
+                self.batch_binding_slices[curr_binding + 1].2 =
+                    self.batch_binding_slices[curr_binding].2 +
+                    self.batch_binding_slices[curr_binding].3;
+                self.batch_binding_slices[curr_binding + 1].3 = 0;
+
+                curr_binding += 1;
+            }
+
+            dc.binding_id = curr_binding;
+            dc.binding_start = self.batch_binding_slices[curr_binding].0 +
+                               self.batch_binding_slices[curr_binding].1;
+
+            index_buff_space -= dc.indices_count;
+            vertex_buff_space -= dc.vertices_count;
+
+            self.batch_binding_slices[curr_binding].1 += dc.indices_count;
+            self.batch_binding_slices[curr_binding].3 += dc.vertices_count;
         }
-        assert_eq!(self.draw_calls_bindings.len(), self.draw_calls.len());
+
+        for (idx, bindings) in self.batch_bindings[..=curr_binding].iter_mut().enumerate() {
+            let (batch_indices_start, batch_indices_len, batch_vertices_start, batch_vertices_len) = self.batch_binding_slices[idx];
+            ctx.buffer_update(
+                bindings.vertex_buffers[0],
+                BufferSource::slice(
+                    &self.batch_vertex_buffer
+                        [batch_vertices_start..(batch_vertices_start + batch_vertices_len)],
+                ),
+            );
+            ctx.buffer_update(
+                bindings.index_buffer,
+                BufferSource::slice(
+                    &self.batch_index_buffer
+                        [batch_indices_start..(batch_indices_start + batch_indices_len)],
+                ),
+            );
+        }
 
         let (screen_width, screen_height) = miniquad::window::screen_size();
         let time = (miniquad::date::now() - self.start_time) as f32;
         let time = glam::vec4(time, time.sin(), time.cos(), 0.);
 
-        for (dc, bindings) in self.draw_calls[0..self.draw_calls_count]
-            .iter_mut()
-            .zip(self.draw_calls_bindings.iter_mut())
-        {
+        for dc in &mut self.draw_calls[0..self.draw_calls_count] {
+            let bindings = &mut self.batch_bindings[dc.binding_id];
             let pipeline = self.pipelines.get_quad_pipeline_mut(dc.pipeline);
 
             let (width, height) = if let Some(render_pass) = dc.render_pass {
@@ -726,36 +796,17 @@ impl QuadGl {
                 ctx.begin_default_pass(PassAction::Nothing);
             }
 
-            ctx.buffer_update(
-                bindings.vertex_buffers[0],
-                BufferSource::slice(
-                    &self.batch_vertex_buffer
-                        [dc.vertices_start..(dc.vertices_start + dc.vertices_count)],
-                ),
-            );
-            ctx.buffer_update(
-                bindings.index_buffer,
-                BufferSource::slice(
-                    &self.batch_index_buffer
-                        [dc.indices_start..(dc.indices_start + dc.indices_count)],
-                ),
-            );
-
-            bindings.images[0] = dc.texture.unwrap_or(white_texture);
-            bindings.images[1] = self
+            bindings.images.clear();
+            bindings.images.push(dc.texture.unwrap_or(white_texture));
+            bindings.images.push(self
                 .state
                 .snapshotter
                 .screen_texture
-                .unwrap_or_else(|| white_texture);
-            bindings
-                .images
-                .resize(2 + pipeline.textures.len(), white_texture);
-
-            for (pos, name) in pipeline.textures.iter().enumerate() {
-                if let Some(texture) = pipeline.textures_data.get(name).copied() {
-                    bindings.images[2 + pos] = texture;
-                }
-            }
+                .unwrap_or_else(|| white_texture));
+            bindings.images.extend(
+                pipeline.textures.iter()
+                    .filter_map(|x| pipeline.textures_data.get(x).copied())
+            );
 
             ctx.apply_pipeline(&pipeline.pipeline);
             if let Some((x, y, w, h)) = dc.viewport {
@@ -782,7 +833,7 @@ impl QuadGl {
                 pipeline.uniforms_data.as_ptr(),
                 pipeline.uniforms_data.len(),
             );
-            ctx.draw(0, dc.indices_count as i32, 1);
+            ctx.draw(dc.binding_start as i32, dc.indices_count as i32, 1);
             ctx.end_render_pass();
 
             if dc.capture {
@@ -1010,27 +1061,27 @@ impl QuadGl {
             draw_call.indices_start = 0;
             draw_call.vertices_start = 0;
         }
-        for binding in &mut self.draw_calls_bindings {
-            ctx.delete_buffer(binding.index_buffer);
-            for vertex_buffer in &binding.vertex_buffers {
-                ctx.delete_buffer(*vertex_buffer);
-            }
-            let vertex_buffer = ctx.new_buffer(
-                BufferType::VertexBuffer,
-                BufferUsage::Stream,
-                BufferSource::empty::<Vertex>(self.max_vertices),
-            );
-            let index_buffer = ctx.new_buffer(
-                BufferType::IndexBuffer,
-                BufferUsage::Stream,
-                BufferSource::empty::<u16>(self.max_indices),
-            );
-            *binding = Bindings {
-                vertex_buffers: vec![vertex_buffer],
-                index_buffer,
-                images: vec![self.white_texture, self.white_texture],
-            };
-        }
+        // for binding in &mut self.draw_calls_bindings {
+        //     ctx.delete_buffer(binding.index_buffer);
+        //     for vertex_buffer in &binding.vertex_buffers {
+        //         ctx.delete_buffer(*vertex_buffer);
+        //     }
+        //     let vertex_buffer = ctx.new_buffer(
+        //         BufferType::VertexBuffer,
+        //         BufferUsage::Stream,
+        //         BufferSource::empty::<Vertex>(self.max_vertices),
+        //     );
+        //     let index_buffer = ctx.new_buffer(
+        //         BufferType::IndexBuffer,
+        //         BufferUsage::Stream,
+        //         BufferSource::empty::<u16>(self.max_indices),
+        //     );
+        //     *binding = Bindings {
+        //         vertex_buffers: vec![vertex_buffer],
+        //         index_buffer,
+        //         images: vec![self.white_texture, self.white_texture],
+        //     };
+        // }
     }
 }
 
