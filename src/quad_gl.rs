@@ -750,6 +750,10 @@ impl QuadGl {
             index_buff_space -= dc.indices_count;
             vertex_buff_space -= dc.vertices_count;
 
+            for idx in &mut self.batch_index_buffer[dc.indices_start..(dc.indices_start + dc.indices_count)] {
+                *idx += self.batch_binding_slices[curr_binding].3 as u16;
+            }
+
             self.batch_binding_slices[curr_binding].1 += dc.indices_count;
             self.batch_binding_slices[curr_binding].3 += dc.vertices_count;
         }
