@@ -744,8 +744,7 @@ impl QuadGl {
             }
 
             dc.binding_id = curr_binding;
-            dc.binding_start = self.batch_binding_slices[curr_binding].0 +
-                               self.batch_binding_slices[curr_binding].1;
+            dc.binding_start = self.batch_binding_slices[curr_binding].1;
 
             index_buff_space -= dc.indices_count;
             vertex_buff_space -= dc.vertices_count;
