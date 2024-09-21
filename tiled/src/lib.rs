@@ -96,7 +96,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn spr(&self, tileset: &str, sprite: u32, dest: Rect) {
+    pub fn spr(&self, tileset: &str, sprite: u32, dest: Rect, flip_d: bool, flip_x: bool, flip_y: bool) {
         if self.tilesets.contains_key(tileset) == false {
             panic!(
                 "No such tileset: {}, tilesets available: {:?}",
@@ -120,6 +120,8 @@ impl Map {
                     spr_rect.w + 2.0,
                     spr_rect.h + 2.0,
                 )),
+                flip_x,
+                flip_y,
                 ..Default::default()
             },
         );
@@ -186,7 +188,7 @@ impl Map {
 
         for (tileset, tileset_layer) in &separated_by_ts {
             for (tile, rect) in tileset_layer {
-                self.spr(tileset, tile.id, *rect);
+                self.spr(tileset, tile.id, *rect, tile.flip_d, tile.flip_x, tile.flip_y);
             }
         }
     }
