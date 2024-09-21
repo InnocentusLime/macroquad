@@ -120,7 +120,7 @@ impl Map {
                     spr_rect.w + 2.0,
                     spr_rect.h + 2.0,
                 )),
-                flip_x: flip_x && flip_d,
+                flip_x: flip_x && !flip_d,
                 flip_y,
                 rotation: if flip_d { -std::f32::consts::FRAC_PI_2 } else { 0.0 },
                 ..Default::default()
