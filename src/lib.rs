@@ -856,7 +856,12 @@ impl Window {
         miniquad::start(miniquad_conf, move || {
             thread_assert::set_thread_id();
             unsafe {
-                MAIN_FUTURE = Some(Box::pin(future));
+                MAIN_FUTURE = Some(Box::pin(async {
+                    future.await;
+                    if let Some(ctx) = CONTEXT.as_mut() {
+                        ctx.gl.reset();
+                    }
+                }));
             }
             let mut context = Context::new();
             context.update_on = update_on.unwrap_or_default();
