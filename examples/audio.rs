@@ -1,4 +1,4 @@
-use macroquad::{audio, prelude::*, ui};
+use macroquad::{audio, prelude::*};
 
 #[macroquad::main("Audio")]
 async fn main() {
@@ -10,11 +10,11 @@ async fn main() {
     loop {
         clear_background(LIGHTGRAY);
 
-        if ui::root_ui().button(None, "Play sound 1") {
+        if is_key_pressed(KeyCode::A) {
             warn!("play 1!");
             audio::play_sound_once(&sound1);
         }
-        if ui::root_ui().button(None, "Play sound 2") {
+        if is_key_pressed(KeyCode::B) {
             warn!("play 2!");
             audio::play_sound_once(&sound2);
         }

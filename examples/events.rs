@@ -1,45 +1,30 @@
-use macroquad::ui::{hash, root_ui, widgets};
-
 use macroquad::prelude::*;
 
 #[macroquad::main("Events")]
 async fn main() {
+    let y_off = 32.0;
     loop {
         clear_background(WHITE);
-        root_ui().window(hash!(), Vec2::new(20., 20.), Vec2::new(450., 200.), |ui| {
-            let (mouse_x, mouse_y) = mouse_position();
-            ui.label(None, &format!("Mouse position: {mouse_x} {mouse_y}"));
 
-            let (mouse_wheel_x, mouse_wheel_y) = mouse_wheel();
-            ui.label(None, &format!("Mouse wheel x: {mouse_wheel_x}"));
-            ui.label(None, &format!("Mouse wheel y: {mouse_wheel_y}"));
+        let (mouse_x, mouse_y) = mouse_position();
+        draw_text(&format!("Mouse position: {mouse_x} {mouse_y}"), 0.0, y_off * 1.0, 16.0, BLACK);
 
-            widgets::Group::new(hash!(), Vec2::new(200., 90.))
-                .position(Vec2::new(240., 0.))
-                .ui(ui, |ui| {
-                    ui.label(None, "Pressed kbd keys");
+        let (mouse_wheel_x, mouse_wheel_y) = mouse_wheel();
+        draw_text(&format!("Mouse wheel x: {mouse_wheel_x}"), 0.0, y_off * 2.0, 16.0, BLACK);
+        draw_text(&format!("Mouse wheel y: {mouse_wheel_y}"), 0.0, y_off * 3.0, 16.0, BLACK);
 
-                    if let Some(key) = get_last_key_pressed() {
-                        ui.label(None, &format!("{key:?}"))
-                    }
-                });
+        let key = get_last_key_pressed();
+        draw_text("Pressed keyboard keys", 0.0, y_off * 5.0, 16.0, BLACK);
+        draw_text(&format!("{key:?}"), 0.0, y_off * 6.0, 16.0, BLACK);
 
-            widgets::Group::new(hash!(), Vec2::new(200., 90.))
-                .position(Vec2::new(240., 92.))
-                .ui(ui, |ui| {
-                    ui.label(None, "Pressed mouse keys");
-
-                    if is_mouse_button_down(MouseButton::Left) {
-                        ui.label(None, "Left");
-                    }
-                    if is_mouse_button_down(MouseButton::Right) {
-                        ui.label(None, "Right");
-                    }
-                    if is_mouse_button_down(MouseButton::Middle) {
-                        ui.label(None, "Middle");
-                    }
-                });
-        });
+        draw_text("Pressed mouse keys", 0.0, y_off * 7.0, 16.0, BLACK);
+        let l_down = is_mouse_button_down(MouseButton::Left);
+        let r_down = is_mouse_button_down(MouseButton::Right);
+        let m_down = is_mouse_button_down(MouseButton::Middle);
+        draw_text(&format!("left:{l_down}"), 0.0, y_off * 8.0, 16.0, BLACK);
+        draw_text(&format!("right:{r_down}"), 0.0, y_off * 9.0, 16.0, BLACK);
+        draw_text(&format!("middle:{m_down}"), 0.0, y_off * 10.0, 16.0, BLACK);
+    
         next_frame().await;
     }
 }
