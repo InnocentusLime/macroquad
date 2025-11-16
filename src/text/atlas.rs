@@ -78,14 +78,6 @@ impl Atlas {
         self.sprites.get(&key).cloned()
     }
 
-    pub const fn width(&self) -> u16 {
-        self.image.width
-    }
-
-    pub const fn height(&self) -> u16 {
-        self.image.height
-    }
-
     pub fn texture(&mut self) -> miniquad::TextureId {
         let ctx = get_quad_context();
         if self.dirty {

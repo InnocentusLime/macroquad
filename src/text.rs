@@ -73,28 +73,6 @@ impl Font {
         })
     }
 
-    pub(crate) fn set_atlas(&mut self, atlas: Arc<Mutex<Atlas>>) {
-        self.atlas = atlas;
-    }
-
-    pub(crate) fn set_characters(
-        &mut self,
-        characters: Arc<Mutex<HashMap<(char, u16), CharacterInfo>>>,
-    ) {
-        self.characters = characters;
-    }
-
-    pub(crate) fn ascent(&self, font_size: f32) -> f32 {
-        self.font.horizontal_line_metrics(font_size).unwrap().ascent
-    }
-
-    pub(crate) fn descent(&self, font_size: f32) -> f32 {
-        self.font
-            .horizontal_line_metrics(font_size)
-            .unwrap()
-            .descent
-    }
-
     pub(crate) fn cache_glyph(&self, character: char, size: u16) {
         if self.contains(character, size) {
             return;
@@ -132,14 +110,7 @@ impl Font {
             .unwrap()
             .insert((character, size), character_info);
     }
-
-    pub(crate) fn get(&self, character: char, size: u16) -> Option<CharacterInfo> {
-        self.characters
-            .lock()
-            .unwrap()
-            .get(&(character, size))
-            .cloned()
-    }
+    
     /// Returns whether the character has been cached
     pub(crate) fn contains(&self, character: char, size: u16) -> bool {
         self.characters
