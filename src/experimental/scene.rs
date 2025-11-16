@@ -604,8 +604,6 @@ pub(crate) fn allocated_memory() -> usize {
 }
 
 pub fn clear() {
-    crate::experimental::coroutines::stop_all_coroutines();
-
     unsafe { get_scene() }.clear()
 }
 

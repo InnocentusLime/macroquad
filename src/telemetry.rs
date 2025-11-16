@@ -329,15 +329,6 @@ pub fn strings() -> Vec<String> {
     get_profiler().strings.clone()
 }
 
-/// Note that coroutines pre-allocate 56Kb, so 56000 as a result doesnt mean a leak
-pub fn coroutines_allocated_memory() -> usize {
-    get_context().coroutines_context.allocated_memory()
-}
-
-pub fn active_coroutines_count() -> usize {
-    get_context().coroutines_context.active_coroutines_count()
-}
-
 pub fn capture_frame() {
     get_profiler().capture_request = true;
 }
