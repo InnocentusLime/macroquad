@@ -61,8 +61,6 @@ pub mod texture;
 pub mod time;
 pub mod window;
 
-pub mod experimental;
-
 pub mod prelude;
 
 mod error;
@@ -396,8 +394,6 @@ impl Context {
     }
 
     fn end_frame(&mut self) {
-        crate::experimental::scene::update();
-
         self.perform_render_passes();
 
         let screen_mat = self.pixel_perfect_projection_matrix();
