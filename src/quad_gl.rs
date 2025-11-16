@@ -4,7 +4,7 @@ use miniquad::*;
 
 pub use miniquad::{FilterMode, TextureId as MiniquadTexture, UniformDesc};
 
-use crate::{color::Color, logging::warn, telemetry, texture::Texture2D, tobytes::ToBytes, Error};
+use crate::{color::Color, logging::warn, texture::Texture2D, tobytes::ToBytes, Error};
 
 use std::collections::BTreeMap;
 
@@ -35,7 +35,6 @@ struct DrawCall {
     pipeline: GlPipeline,
     uniforms: Option<Vec<u8>>,
     render_pass: Option<RenderPass>,
-    capture: bool,
 }
 
 impl DrawCall {
@@ -60,7 +59,6 @@ impl DrawCall {
             pipeline,
             uniforms,
             render_pass,
-            capture: false,
         }
     }
 }
@@ -266,7 +264,6 @@ struct GlState {
     snapshotter: MagicSnapshotter,
 
     render_pass: Option<RenderPass>,
-    capture: bool,
 }
 
 impl GlState {
@@ -590,7 +587,6 @@ impl QuadGl {
                 depth_test_enable: false,
                 snapshotter: MagicSnapshotter::new(ctx),
                 render_pass: None,
-                capture: false,
             },
             draw_calls: Vec::with_capacity(200),
             draw_calls_bindings: Vec::with_capacity(200),
@@ -787,10 +783,6 @@ impl QuadGl {
             ctx.draw(0, dc.indices_count as i32, 1);
             ctx.end_render_pass();
 
-            if dc.capture {
-                telemetry::track_drawcall(&pipeline.pipeline, bindings, dc.indices_count);
-            }
-
             dc.vertices_count = 0;
             dc.indices_count = 0;
             dc.vertices_start = 0;
@@ -800,10 +792,6 @@ impl QuadGl {
         self.draw_calls_count = 0;
         self.batch_index_buffer.clear();
         self.batch_vertex_buffer.clear();
-    }
-
-    pub(crate) fn capture(&mut self, capture: bool) {
-        self.state.capture = capture;
     }
 
     pub fn get_projection_matrix(&self) -> glam::Mat4 {
@@ -905,7 +893,6 @@ impl QuadGl {
                 || draw_call.draw_mode != self.state.draw_mode
                 || draw_call.vertices_count >= self.max_vertices - vertices.len()
                 || draw_call.indices_count >= self.max_indices - indices.len()
-                || draw_call.capture != self.state.capture
                 || self.state.break_batching
         }) {
             let uniforms = self.state.pipeline.map_or(None, |pipeline| {
@@ -936,7 +923,6 @@ impl QuadGl {
             self.draw_calls[self.draw_calls_count].model = self.state.model();
             self.draw_calls[self.draw_calls_count].pipeline = pip;
             self.draw_calls[self.draw_calls_count].render_pass = self.state.render_pass;
-            self.draw_calls[self.draw_calls_count].capture = self.state.capture;
             self.draw_calls[self.draw_calls_count].indices_start = self.batch_index_buffer.len();
             self.draw_calls[self.draw_calls_count].vertices_start = self.batch_vertex_buffer.len();
 
